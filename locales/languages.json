@@ -1,11 +1,15 @@
 {
-  "zh": {
-    "label": "中文",
-    "llmInstruction": "请使用中文回答。"
+  "ru": {
+    "label": "Русский",
+    "llmInstruction": "Пожалуйста, отвечайте на русском языке."
   },
   "en": {
     "label": "English",
     "llmInstruction": "Please respond in English."
+  },
+  "zh": {
+    "label": "中文",
+    "llmInstruction": "请使用中文回答。"
   },
   "es": {
     "label": "Español",
@@ -18,10 +22,6 @@
   "pt": {
     "label": "Português",
     "llmInstruction": "Por favor, responda em português."
-  },
-  "ru": {
-    "label": "Русский",
-    "llmInstruction": "Пожалуйста, отвечайте на русском языке."
   },
   "de": {
     "label": "Deutsch",

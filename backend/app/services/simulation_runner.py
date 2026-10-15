@@ -288,14 +288,28 @@ class SimulationRunner:
     @classmethod
     def get_run_state(cls, simulation_id: str) -> Optional[SimulationRunState]:
         """获取运行状态"""
-        if simulation_id in cls._run_states:
-            return cls._run_states[simulation_id]
-        
-        # 尝试从文件加载
+        cached = cls._run_states.get(simulation_id)
+        # If memory is stuck on STOPPING but disk already has a terminal
+        # status (e.g. process died during Zep flush), prefer the file.
+        if cached is not None and cached.runner_status != RunnerStatus.STOPPING:
+            return cached
+
         state = cls._load_run_state(simulation_id)
         if state:
-            cls._run_states[simulation_id] = state
-        return state
+            if (
+                cached is not None
+                and cached.runner_status == RunnerStatus.STOPPING
+                and state.runner_status
+                in {RunnerStatus.COMPLETED, RunnerStatus.STOPPED, RunnerStatus.FAILED}
+            ):
+                cls._run_states[simulation_id] = state
+                return state
+            if cached is None:
+                cls._run_states[simulation_id] = state
+                return state
+            return cached
+
+        return cached
     
     @classmethod
     def _load_run_state(cls, simulation_id: str) -> Optional[SimulationRunState]:
@@ -617,7 +631,7 @@ class SimulationRunner:
         return state
     
     @classmethod
-    def _monitor_simulation(cls, simulation_id: str, locale: str = 'zh'):
+    def _monitor_simulation(cls, simulation_id: str, locale: str = 'ru'):
         """监控模拟进程，解析动作日志"""
         set_locale(locale)
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)

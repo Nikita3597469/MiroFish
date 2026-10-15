@@ -14,12 +14,21 @@ for (const path in localeFiles) {
   }
 }
 
-const savedLocale = localStorage.getItem('locale') || 'zh'
+// Default UI language: Russian (migrate previous Chinese default once)
+if (!localStorage.getItem('locale_migrated_ru') && localStorage.getItem('locale') === 'zh') {
+  localStorage.setItem('locale', 'ru')
+  localStorage.setItem('locale_migrated_ru', '1')
+}
+const savedLocale = localStorage.getItem('locale')
+const locale = savedLocale && messages[savedLocale] ? savedLocale : 'ru'
+if (!savedLocale || !messages[savedLocale]) {
+  localStorage.setItem('locale', 'ru')
+}
 
 const i18n = createI18n({
   legacy: false,
-  locale: savedLocale,
-  fallbackLocale: 'zh',
+  locale,
+  fallbackLocale: 'en',
   messages
 })
 

@@ -89,6 +89,46 @@ def generate_report():
             RunnerStatus.PAUSED,
             RunnerStatus.STOPPING,
         }
+        platforms_done = bool(
+            run_state
+            and run_state.twitter_completed
+            and run_state.reddit_completed
+            and run_state.total_rounds > 0
+            and (
+                run_state.current_round >= run_state.total_rounds
+                or (
+                    run_state.twitter_current_round >= run_state.total_rounds
+                    and run_state.reddit_current_round >= run_state.total_rounds
+                )
+            )
+        )
+        # If both worlds finished all rounds but Zep flush / runner status
+        # never reached a terminal state, allow report generation so the UI
+        # is not permanently blocked.
+        if platforms_done and (
+            updater is not None
+            or (run_state is not None and run_state.runner_status in active_statuses)
+        ):
+            # Hard-clear without waiting on Zep drain — both worlds already
+            # finished all rounds, so report generation must not stay blocked.
+            with ZepGraphMemoryManager._lock:
+                leftover = ZepGraphMemoryManager._updaters.pop(simulation_id, None)
+            if leftover is not None:
+                try:
+                    leftover._running = False
+                except Exception:
+                    pass
+            updater = None
+            if run_state is not None and run_state.runner_status in active_statuses:
+                run_state.runner_status = RunnerStatus.COMPLETED
+                run_state.twitter_running = False
+                run_state.reddit_running = False
+                if not run_state.completed_at:
+                    from datetime import datetime
+                    run_state.completed_at = datetime.now().isoformat()
+                SimulationRunner._save_run_state(run_state)
+                SimulationRunner._run_states[simulation_id] = run_state
+
         if updater is not None or (
             run_state is not None and run_state.runner_status in active_statuses
         ):

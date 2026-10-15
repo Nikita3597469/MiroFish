@@ -512,11 +512,18 @@ const fetchRunStatus = async () => {
       }
       
       // 检测模拟是否已完成（通过 runner_status 或平台完成状态判断）
-      const isCompleted = data.runner_status === 'completed' || data.runner_status === 'stopped'
+      const platformsDone = checkPlatformsCompleted(data)
+      const isCompleted =
+        data.runner_status === 'completed' ||
+        data.runner_status === 'stopped' ||
+        // Zep memory flush can leave runner_status stuck on "stopping"
+        // after both platforms already finished all rounds.
+        (platformsDone &&
+          (data.runner_status === 'stopping' || data.progress_percent >= 100))
       const isFailed = data.runner_status === 'failed'
       
-      // runner_status is authoritative because the backend only publishes a
-      // terminal state after the Zep ingestion barrier has completed.
+      // Prefer terminal runner_status; also unlock when platforms are done
+      // but Zep stop barrier never flipped status to completed.
       if (isFailed) {
         addLog(t('log.simFailed') + (data.error ? `: ${data.error}` : ''))
         phase.value = 2
@@ -688,11 +695,52 @@ watch(() => props.systemLogs?.length, () => {
   })
 })
 
-onMounted(() => {
+onMounted(async () => {
   addLog(t('log.step3Init'))
-  if (props.simulationId) {
-    doStartSimulation()
+  if (!props.simulationId) return
+
+  // Do NOT force-restart on every mount — that wiped finished runs and
+  // blocked report generation. Resume or attach instead.
+  try {
+    const res = await getRunStatus(props.simulationId)
+    const data = res?.success ? res.data : null
+    if (data) {
+      runStatus.value = data
+      const platformsDone =
+        data.twitter_completed === true &&
+        data.reddit_completed === true &&
+        (data.progress_percent || 0) >= 100
+      const terminal =
+        data.runner_status === 'completed' ||
+        data.runner_status === 'stopped' ||
+        platformsDone
+      const active =
+        data.runner_status === 'running' ||
+        data.runner_status === 'starting' ||
+        data.runner_status === 'stopping' ||
+        data.twitter_running ||
+        data.reddit_running
+
+      if (terminal) {
+        addLog(t('log.simCompleted'))
+        phase.value = 2
+        emit('update-status', 'completed')
+        return
+      }
+      if (active) {
+        addLog(t('log.engineStarted'))
+        phase.value = 1
+        emit('update-status', 'processing')
+        startStatusPolling()
+        startDetailPolling()
+        return
+      }
+    }
+  } catch (err) {
+    console.warn('resume run-status failed:', err)
   }
+
+  doStartSimulation()
 })
 
 onUnmounted(() => {

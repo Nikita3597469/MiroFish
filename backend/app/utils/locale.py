@@ -27,14 +27,14 @@ def set_locale(locale: str):
 
 def get_locale() -> str:
     if has_request_context():
-        raw = request.headers.get('Accept-Language', 'zh')
-        return raw if raw in _translations else 'zh'
-    return getattr(_thread_local, 'locale', 'zh')
+        raw = request.headers.get('Accept-Language', 'ru')
+        return raw if raw in _translations else 'ru'
+    return getattr(_thread_local, 'locale', 'ru')
 
 
 def t(key: str, **kwargs) -> str:
     locale = get_locale()
-    messages = _translations.get(locale, _translations.get('zh', {}))
+    messages = _translations.get(locale) or _translations.get('ru') or _translations.get('en') or {}
 
     value = messages
     for part in key.split('.'):
@@ -45,12 +45,15 @@ def t(key: str, **kwargs) -> str:
             break
 
     if value is None:
-        value = _translations.get('zh', {})
-        for part in key.split('.'):
-            if isinstance(value, dict):
-                value = value.get(part)
-            else:
-                value = None
+        for fallback in ('ru', 'en', 'zh'):
+            value = _translations.get(fallback, {})
+            for part in key.split('.'):
+                if isinstance(value, dict):
+                    value = value.get(part)
+                else:
+                    value = None
+                    break
+            if value is not None:
                 break
 
     if value is None:
@@ -65,5 +68,5 @@ def t(key: str, **kwargs) -> str:
 
 def get_language_instruction() -> str:
     locale = get_locale()
-    lang_config = _languages.get(locale, _languages.get('zh', {}))
-    return lang_config.get('llmInstruction', '请使用中文回答。')
+    lang_config = _languages.get(locale, _languages.get('ru', {}))
+    return lang_config.get('llmInstruction', 'Пожалуйста, отвечайте на русском языке.')
